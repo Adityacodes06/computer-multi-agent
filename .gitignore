@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv
+venv/
+ENV/
+.env
+
+# Project specific
+screenshots/
+agent_log.jsonl
+task_memory.json
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store

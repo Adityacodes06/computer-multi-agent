@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pyautogui
+mss
+pillow
+python-dotenv
+requests
+pydantic

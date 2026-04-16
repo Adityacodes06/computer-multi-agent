@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentOS | Command Center</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Fira+Code&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Dashboard Left: Task Command -->
+        <div class="glass-panel">
+            <div class="header-row">
+                <h1 class="gradient-text"><i data-lucide="cpu" class="icon-lg"></i> AgentOS</h1>
+                <div class="status-badge">
+                    <span class="status-indicator status-online"></span>
+                    System Online
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label><i data-lucide="terminal-square"></i> Task Description</label>
+                <input type="text" id="taskDesc" placeholder="e.g., Open Notes and draft a message...">
+            </div>
+
+            <div class="steps-section">
+                <div class="header-row">
+                    <h2><i data-lucide="list-ordered"></i> Execute Sequence</h2>
+                </div>
+                <div id="stepsContainer"></div>
+            </div>
+
+            <div class="actions-row">
+                <button class="btn btn-secondary" onclick="addStep()"><i data-lucide="plus"></i> Add Action</button>
+                <button class="btn btn-primary" onclick="submitTask()"><i data-lucide="play"></i> Execute Sequence</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Right: Real-time Intel -->
+        <div class="glass-panel right-panel">
+            <div class="header-row">
+                <h2 class="gradient-text"><i data-lucide="activity"></i> Activity Logs</h2>
+                <button class="btn-icon" onclick="clearLogs()" title="Clear Logs"><i data-lucide="trash-2"></i></button>
+            </div>
+            <div id="logs" class="logs-container">
+                <div class="log-entry log-info" id="initial-log">
+                    <div class="log-header">
+                        <i data-lucide="info"></i>
+                        <span>System initializing... ready for commands.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Modal -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal()">&times;</span>
+            <img id="modalImage" src="" alt="Screenshot">
+        </div>
+    </div>
+
+    <script>
+        let stepCount = 0;
+
+        function addStep() {
+            const container = document.getElementById('stepsContainer');
+            const stepId = stepCount++;
+            
+            const stepCard = document.createElement('div');
+            stepCard.className = 'step-card';
+            stepCard.id = `step-${stepId}`;
+            
+            stepCard.innerHTML = `
+                <div class="step-header">
+                    <span class="step-number">${stepId + 1}</span>
+                    <button class="btn-icon text-danger" onclick="removeStep(${stepId})"><i data-lucide="x"></i></button>
+                </div>
+                <div class="step-grid">
+                    <div>
+                        <label>Action Type</label>
+                        <select class="step-type" onchange="updateStepParams(${stepId})">
+                            <option value="hotkey">Hotkey</option>
+                            <option value="type">Type Text</option>
+                            <option value="click">Mouse Click</option>
+                            <option value="move">Mouse Move</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Goal (Optional)</label>
+                        <input type="text" class="step-goal" placeholder="e.g. Open App">
+                    </div>
+                </div>
+                <div id="params-${stepId}" class="params-container">
+                    <!-- Dynamic params injected here -->
+                </div>
+            `;
+            
+            container.appendChild(stepCard);
+            updateStepParams(stepId);
+            lucide.createIcons();
+        }
+
+        function removeStep(id) {
+            const el = document.getElementById(`step-${id}`);
+            if(el) el.remove();
+            
+            // Re-number
+            document.querySelectorAll('.step-number').forEach((el, idx) => {
+                el.textContent = idx + 1;
+            });
+        }
+
+        function updateStepParams(id) {
+            const type = document.querySelector(`#step-${id} .step-type`).value;
+            const container = document.getElementById(`params-${id}`);
+            
+            let html = '';
+            if (type === 'hotkey') {
+                html = `
+                    <label>Keys (comma separated)</label>
+                    <input type="text" class="param-input" data-param="keys" placeholder="command, space">
+                `;
+            } else if (type === 'type') {
+                html = `
+                    <label>Text to type</label>
+                    <input type="text" class="param-input" data-param="text" placeholder="Hello World">
+                `;
+            } else if (type === 'click' || type === 'move') {
+                html = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label>X Coordinate</label>
+                            <input type="number" class="param-input" data-param="x" placeholder="500">
+                        </div>
+                        <div>
+                            <label>Y Coordinate</label>
+                            <input type="number" class="param-input" data-param="y" placeholder="500">
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        async function submitTask() {
+            const desc = document.getElementById('taskDesc').value;
+            const steps = [];
+            
+            document.querySelectorAll('.step-card').forEach(card => {
+                const type = card.querySelector('.step-type').value;
+                const goal = card.querySelector('.step-goal').value;
+                const params = {};
+                
+                card.querySelectorAll('.param-input').forEach(input => {
+                    const pName = input.getAttribute('data-param');
+                    let pVal = input.value;
+                    
+                    if (type === 'hotkey' && pName === 'keys') {
+                        params[pName] = pVal.split(',').map(s => s.trim()).filter(s => s);
+                    } else if ((type === 'click' || type === 'move') && (pName === 'x' || pName === 'y')) {
+                        params[pName] = parseInt(pVal) || 0;
+                    } else {
+                        params[pName] = pVal;
+                    }
+                });
+                
+                steps.push({ type, params, goal });
+            });
+
+            try {
+                addLog('System', 'task_queued', { message: 'Sending sequence to orchestrator...' }, 'info');
+                const response = await fetch('/execute_task', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ task_description: desc, steps: steps })
+                });
+                const data = await response.json();
+                // We'll let the polling capture the success updates.
+            } catch (err) {
+                addLog('System', 'error', { error: err.message }, 'error');
+            }
+        }
+
+        function clearLogs() {
+            const logs = document.getElementById('logs');
+            logs.innerHTML = '';
+        }
+
+        function showImage(src) {
+            document.getElementById('modalImage').src = src;
+            document.getElementById('imageModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
+        }
+
+        function addLog(agent, event, details, status) {
+            const logsDiv = document.getElementById('logs');
+            const entry = document.createElement('div');
+            
+            const isError = status === 'error' || status === 'failed';
+            const logClass = isError ? 'log-error' : (status === 'success' ? 'log-success' : 'log-info');
+            entry.className = \`log-entry \${logClass}\`;
+            
+            let icon = 'info';
+            if (agent === 'Orchestrator') icon = 'cpu';
+            else if (agent === 'ActionAgent') icon = 'zap';
+            else if (agent === 'PerceptionAgent') icon = 'eye';
+            else if (agent === 'ErrorCorrectionAgent') icon = 'shield-alert';
+
+            let detailsHtml = '';
+            
+            // Generate message
+            let msg = \`\${event}\`;
+            if (details && details.command) msg += \` (\${details.command})\`;
+            if (isError && details && details.error) msg += \`: \${details.error}\`;
+
+            entry.innerHTML = \`
+                <div class="log-header">
+                    <i data-lucide="\${icon}"></i>
+                    <strong>\${agent}</strong> 
+                    <span class="log-msg">\${msg}</span>
+                </div>
+            \`;
+            
+            logsDiv.insertBefore(entry, logsDiv.firstChild);
+            lucide.createIcons({root: entry});
+        }
+
+        let lastTimestamp = null;
+
+        setInterval(async () => {
+            try {
+                const res = await fetch('/logs?limit=15');
+                const data = await res.json();
+                const logsDiv = document.getElementById('logs');
+                
+                data.reverse().forEach(log => {
+                    const logId = \`log-\${log.timestamp}\`;
+                    if (!document.getElementById(logId)) {
+                        const entry = document.createElement('div');
+                        entry.id = logId;
+                        
+                        const isError = log.status === 'error' || log.status === 'failed';
+                        const logClass = isError ? 'log-error' : (log.status === 'success' ? 'log-success' : 'log-info');
+                        entry.className = \`log-entry \${logClass}\`;
+                        
+                        let icon = 'info';
+                        if (log.agent === 'Orchestrator') icon = 'cpu';
+                        else if (log.agent === 'ActionAgent') icon = 'zap';
+                        else if (log.agent === 'PerceptionAgent') icon = 'eye';
+                        else if (log.agent === 'ErrorCorrectionAgent') icon = 'shield-alert';
+
+                        let detailsHtml = '';
+                        if (log.details && log.details.file && log.details.file.includes('screenshots/')) {
+                            const filename = log.details.file.split('screenshots/').pop();
+                            const staticSrc = \`/screenshots/\${filename}\`;
+                            detailsHtml += \`
+                                <div class="log-screenshot" onclick="showImage('\${staticSrc}')">
+                                    <i data-lucide="image"></i> View Captured State
+                                </div>
+                            \`;
+                        }
+
+                        let msg = \`\${log.event}\`;
+                        if (log.details && log.details.command) msg += \` (\${log.details.command})\`;
+                        if (isError && log.details && log.details.error) msg += \` - \${log.details.error}\`;
+                        
+                        entry.innerHTML = \`
+                            <div class="log-header">
+                                <i data-lucide="\${icon}"></i>
+                                <strong>\${log.agent}</strong> 
+                                <span class="log-msg">\${msg}</span>
+                            </div>
+                            \${detailsHtml}
+                        \`;
+                        
+                        logsDiv.insertBefore(entry, logsDiv.firstChild);
+                        lucide.createIcons({root: entry});
+                    }
+                });
+            } catch (err) {}
+        }, 2000);
+
+        // Initial setup
+        addStep();
+        lucide.createIcons();
+    </script>
+</body>
+</html>
